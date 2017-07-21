@@ -10,11 +10,11 @@ http = urllib3.PoolManager()
 def get_id_peptides_no(project_id):
 
     get_id_peptides_url = get_id_peptides_url_pre + project_id
-    response = http.request('GET', get_id_peptides_url)
+    response = http.request('GET', get_id_peptides_url, timeout=10.0, retries=10)
     if response.status == 200:
         return int(response.data)
     else:
-        raise Exception("Failed to get the number of identified peptides for project !", project_id)
+        print("Failed to get the number of identified peptides for project !", project_id)
 
 
 
@@ -31,7 +31,7 @@ def connect_to_db():
 
 def get_projects(table_name, connection):
     select_sql = "SELECT project_id FROM `" + table_name + "`;"  
-    projects = []
+    projects = set() 
     try:
         with connection.cursor() as cursor:
             cursor.execute(select_sql)
@@ -39,15 +39,15 @@ def get_projects(table_name, connection):
             connection.commit()
             for result in results:
                 project_id = result.get("project_id")
-                projects.append(project_id)
+                projects.add(project_id)
     finally:
         pass
 
     return projects
 
-def get_clusters(project_id, connection):
+def get_clusters(project_id, table_name, connection):
     #only get the identified spec
-    select_sql = "SELECT cluster_id, cluster_ratio, spectrum_title FROM `201504_test` WHERE " + \
+    select_sql = "SELECT cluster_id, cluster_ratio, spectrum_title FROM `" + table_name + "` WHERE " + \
                  "spec_prj_id = '" + project_id + "' AND " +\
                  "is_spec_identified = 1" 
     cluster_dict = {}
@@ -78,29 +78,33 @@ def get_clusters(project_id, connection):
 
 def print_head():
     print("spectra:")
-    line = "project_id\t" + "identified\t" + "clustered\t" +  "high_ratio\t" + "high_ratio_percent\t" \
-            + "low_ratio\t" + "low_ratio_percent"
+    line = "project_id\t" + "identified\t" + "clustered\t" +  "high_ratio\t" + \
+            "low_ratio\t" + "clustered_percent\t" + "high_ratio_percent\t" + "low_ratio_percent"
     print(line)
     print("")
 
 def main():
-    table_name = "201504_test"
+    table_name = "201504_2"
     connection = connect_to_db()
     projects = get_projects(table_name + "_projects", connection)
     
     print_head()
     for project_id in projects:
         N_peptides_identified = get_id_peptides_no(project_id)
-        (N_spec_clustered, N_spec_above_clus_ratio, N_spec_lower_clus_ratio, clusters) = get_clusters(project_id, connection)
-        print(project_id, end='\t')
-        print(str(N_peptides_identified), end='\t')
-        print(str(N_spec_clustered), end='\t')
-        print(str(N_spec_above_clus_ratio), end='\t')
-        print("%5.2f"%(100 * N_spec_above_clus_ratio/N_spec_clustered) + "%", end='\t')
-        print(str(N_spec_lower_clus_ratio), end='\t')
-        print("%5.2f"%(100 * N_spec_lower_clus_ratio/N_spec_clustered) + "%", end='\t')
+        (N_spec_clustered, N_spec_above_clus_ratio, N_spec_lower_clus_ratio, clusters) = get_clusters(project_id, table_name, connection)
+        print(project_id, end='\t\t')
+        print(str(N_peptides_identified), end='\t\t')
+        print(str(N_spec_clustered), end='\t\t')
+        print(str(N_spec_above_clus_ratio), end='\t\t')
+        print(str(N_spec_lower_clus_ratio), end='\t\t')
+        if N_peptides_identified > 0:
+            print("%5.2f"%(100 * N_spec_clustered/N_peptides_identified) + "%", end='\t\t')
+        else:
+            print("Null", end='\t\t')
+        if N_spec_clustered > 0:
+            print("%5.2f"%(100 * N_spec_above_clus_ratio/N_spec_clustered) + "%", end='\t\t')
+            print("%5.2f"%(100 * N_spec_lower_clus_ratio/N_spec_clustered) + "%", end='\t\t')
         print('')
-        return
     return  
     
     print(projects)
