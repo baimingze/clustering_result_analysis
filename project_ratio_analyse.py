@@ -1,5 +1,6 @@
 import pymysql.cursors
 import urllib3
+import sys
 
 
 cluster_props_dict = {}
@@ -46,7 +47,6 @@ def get_projects(table_name, connection):
                 projects.add(project_id)
     finally:
         print("Got " + str(len(projects)) + "projects")
-    projects.add('PRD000478')
     return projects
 
 def get_clusters(project_id, table_name, connection):
@@ -70,11 +70,11 @@ def get_clusters(project_id, table_name, connection):
                 if cluster_fk not in cluster_props_dict :
                     select_cluster_sql = "SELECT cluster_ratio, n_spec FROM `" + table_name + "` WHERE " + \
                        "id = '" + str(cluster_fk) + "'"
-                    cursor.execute(select_spec_sql)
-                    result = cursor.fetchone()
+                    cursor.execute(select_cluster_sql)
+                    result2 = cursor.fetchone()
                     connection.commit()
-                    cluster_ratio = result.get("cluster_ratio")
-                    n_spec = result.get("n_spec")
+                    cluster_ratio = result2.get("cluster_ratio")
+                    n_spec = result2.get("n_spec")
                     cluster_props = [cluster_ratio, n_spec] 
                     cluster_props_dict.update( {cluster_fk:cluster_props})
                 else:
@@ -82,12 +82,15 @@ def get_clusters(project_id, table_name, connection):
                     cluster_ratio = cluster_props[0]
                     n_spec = cluster_props[1]
                 
+                if n_spec < 5:
+                    continue
+
                 N_spec_clustered += 1
                 if cluster_ratio >= 0.618:
                     N_spec_above_clus_ratio += 1
                 else:
                     N_spec_lower_clus_ratio += 1
-   finally:
+    finally:
         pass
 
     """
@@ -144,7 +147,6 @@ def main():
             print("%5.2f"%(100 * N_spec_above_clus_ratio/N_spec_clustered) + "%", end='\t\t')
             print("%5.2f"%(100 * N_spec_lower_clus_ratio/N_spec_clustered) + "%", end='\t\t')
         print('')
-        break 
     return  
     
     print(projects)
